@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Settings:
-    host: str = "127.0.0.1"
+    host: str = os.getenv("REMOTE_EXEC_HOST", "0.0.0.0")
     port: int = int(os.getenv("REMOTE_EXEC_PORT", "9990"))
     db_path: str = os.getenv("REMOTE_EXEC_DB", "data/remote_exec.db")
 

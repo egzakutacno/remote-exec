@@ -50,7 +50,14 @@ func (p *Poller) SetExecutor(r Runner) {
 }
 
 func (p *Poller) Run() {
-	log.Printf("[AGENT] started. server=%s machine=%s", p.cfg.ServerURL, p.cfg.MachineID)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[AGENT] PANIC: %v", r)
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
+	log.Printf("[AGENT] started. server=%s machine=%s wait=%ds", p.cfg.ServerURL, p.cfg.MachineID, p.cfg.PollWait)
 
 	for {
 		task, err := p.poll()

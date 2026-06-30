@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -42,6 +43,8 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
