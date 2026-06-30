@@ -1,5 +1,5 @@
 # AI Remote Execution — GitHub One-Line Installer
-# Usage: $u='https://TUNNEL_URL'; irm https://raw.githubusercontent.com/ruter/remote-exec/main/install.ps1 | iex
+# Usage: $u='https://TUNNEL_URL'; irm https://raw.githubusercontent.com/egzakutacno/remote-exec/main/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -7,7 +7,7 @@ $ProgressPreference = "SilentlyContinue"
 $ServerUrl = if ($u) { $u } elseif ($env:REMOTE_EXEC_SERVER) { $env:REMOTE_EXEC_SERVER } else { $null }
 if (-not $ServerUrl) {
     Write-Host "ERROR: Set `$u variable with server URL first." -ForegroundColor Red
-    Write-Host 'Usage: $u="https://TUNNEL_URL"; irm https://raw.githubusercontent.com/ruter/remote-exec/main/install.ps1 | iex' -ForegroundColor Yellow
+    Write-Host 'Usage: $u="https://TUNNEL_URL"; irm https://raw.githubusercontent.com/egzakutacno/remote-exec/main/install.ps1 | iex' -ForegroundColor Yellow
     exit 1
 }
 
