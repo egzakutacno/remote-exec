@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 class Settings:
     host: str = os.getenv("REMOTE_EXEC_HOST", "0.0.0.0")
     port: int = int(os.getenv("REMOTE_EXEC_PORT", "9990"))
-    db_path: str = os.getenv("REMOTE_EXEC_DB", "data/remote_exec.db")
+    db_path: str = os.getenv("REMOTE_EXEC_DB", "/var/lib/remote-exec/data/remote_exec.db")
 
     poll_timeout: int = 60
     poll_check_interval: float = 1.0

