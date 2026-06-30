@@ -53,52 +53,58 @@ func (p *Poller) SetExecutor(r Runner) {
 }
 
 func (p *Poller) Run() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[AGENT] PANIC: %v", r)
-			time.Sleep(2 * time.Second)
-		}
-	}()
-
 	const maxConsecutiveErrors = 5
 	consecutiveErrors := 0
 
 	log.Printf("[AGENT] started. server=%s machine=%s wait=%ds", p.cfg.ServerURL, p.cfg.MachineID, p.cfg.PollWait)
 
 	for {
-		task, err := p.poll()
-		if err != nil {
-			consecutiveErrors++
-			log.Printf("[AGENT] poll error (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
-
-			if consecutiveErrors >= maxConsecutiveErrors {
-				log.Printf("[AGENT] too many errors, discovering new tunnel URL...")
-				newURL := p.discoverURL()
-				if newURL != "" && newURL != p.cfg.ServerURL {
-					log.Printf("[AGENT] switching to new server: %s", newURL)
-					p.cfg.ServerURL = newURL
-					p.saveConfig()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[AGENT] PANIC recovered: %v — restarting loop", r)
+					consecutiveErrors = 0
 				}
-				consecutiveErrors = 0
+			}()
+
+			task, err := p.poll()
+			if err != nil {
+				consecutiveErrors++
+				log.Printf("[AGENT] poll error (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
+
+				if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "403") {
+					log.Printf("[AGENT] unauthorized — attempting re-registration")
+					p.reRegister()
+					consecutiveErrors = 0
+				} else if consecutiveErrors >= maxConsecutiveErrors {
+					log.Printf("[AGENT] too many errors, discovering new tunnel URL...")
+					newURL := p.discoverURL()
+					if newURL != "" && newURL != p.cfg.ServerURL {
+						log.Printf("[AGENT] switching to new server: %s", newURL)
+						p.cfg.ServerURL = newURL
+						p.saveConfig()
+					}
+					consecutiveErrors = 0
+				}
+
+				time.Sleep(5 * time.Second)
+				return
 			}
 
-			time.Sleep(5 * time.Second)
-			continue
-		}
+			consecutiveErrors = 0
 
-		consecutiveErrors = 0
+			if task == nil {
+				return
+			}
 
-		if task == nil {
-			continue
-		}
+			if task.Action == "kill" {
+				log.Printf("[AGENT] received kill command — shutting down")
+				os.Exit(0)
+			}
 
-		if task.Action == "kill" {
-			log.Printf("[AGENT] received kill command — shutting down")
-			return
-		}
-
-		log.Printf("[AGENT] executing task %s action=%s", task.TaskID, task.Action)
-		p.executeAndReport(task)
+			log.Printf("[AGENT] executing task %s action=%s", task.TaskID, task.Action)
+			p.executeAndReport(task)
+		}()
 	}
 }
 
@@ -128,6 +134,30 @@ func (p *Poller) discoverURL() string {
 		return url
 	}
 	return ""
+}
+
+func (p *Poller) reRegister() {
+	hostname, _ := os.Hostname()
+	body := fmt.Sprintf(`{"name":"%s","api_key":"%s","hostname":"%s","metadata":"{}"}`,
+		p.cfg.Name, p.cfg.APIKey, hostname)
+
+	resp, err := p.client.Post(
+		p.cfg.ServerURL+"/api/v1/agent/register",
+		"application/json",
+		strings.NewReader(body),
+	)
+	if err != nil {
+		log.Printf("[AGENT] re-register failed: %v", err)
+		return
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		log.Printf("[AGENT] re-registered successfully")
+	} else {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		log.Printf("[AGENT] re-register returned %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 func (p *Poller) saveConfig() {
