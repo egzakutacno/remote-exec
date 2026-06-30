@@ -75,10 +75,10 @@ try {
     $old = Get-Service -Name $svcName -ErrorAction SilentlyContinue
     if ($old) { Stop-Service $svcName -Force -ErrorAction SilentlyContinue; sc.exe delete $svcName; Start-Sleep 2 }
 
-    $result = sc.exe create $svcName binPath= "`"$agentPath`" --config `"$configPath`" --console" start= auto 2>&1
+    $result = sc.exe create $svcName binPath= "`"$agentPath`" --config `"$configPath`"" start= auto 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "       sc.exe fallback, trying New-Service..." -ForegroundColor Gray
-        New-Service -Name $svcName -BinaryPathName "`"$agentPath`" --config `"$configPath`" --console" -DisplayName "Remote Exec ($MachineName)" -StartupType Automatic
+        New-Service -Name $svcName -BinaryPathName "`"$agentPath`" --config `"$configPath`"" -DisplayName "Remote Exec ($MachineName)" -StartupType Automatic
     }
     sc.exe description $svcName "AI Remote Execution Agent - $MachineName" 2>&1 | Out-Null
 
