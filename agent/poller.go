@@ -113,8 +113,10 @@ func (p *Poller) discoverURL() string {
 
 	req, err := http.NewRequest("GET", gistURL, nil)
 	if err != nil {
+		log.Printf("[AGENT] gist new-request: %v", err)
 		return ""
 	}
+	req.Header.Set("User-Agent", "RemoteExecAgent/1.0")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -124,15 +126,21 @@ func (p *Poller) discoverURL() string {
 	}
 	defer resp.Body.Close()
 
+	log.Printf("[AGENT] gist fetch status: %d", resp.StatusCode)
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
 	if err != nil {
+		log.Printf("[AGENT] gist read error: %v", err)
 		return ""
 	}
 
 	url := strings.TrimSpace(string(body))
+	log.Printf("[AGENT] gist returned URL: %s", url)
+
 	if strings.HasPrefix(url, "http") {
 		return url
 	}
+	log.Printf("[AGENT] gist returned invalid URL: %q", url)
 	return ""
 }
 

@@ -1,3 +1,4 @@
+import json
 import re
 from config import settings
 
@@ -31,7 +32,14 @@ def validate_task(action: str, payload: str) -> dict:
         _validate_cmd(payload)
     elif action == "restart_service":
         _validate_service(payload)
-    elif action in ("file_read", "file_write", "file_delete"):
+    elif action == "file_write":
+        try:
+            data = json.loads(payload)
+            path = data.get("path", "")
+        except json.JSONDecodeError:
+            raise ValidationError("file_write payload must be JSON: {\"path\":...,\"content\":...}")
+        _validate_file_path(action, path)
+    elif action in ("file_read", "file_delete"):
         _validate_file_path(action, payload)
     elif action == "install_package":
         _validate_package(payload)
